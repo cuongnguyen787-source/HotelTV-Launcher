@@ -292,15 +292,19 @@ class MainActivity : Activity() {
                 if (isPackageInstalled(packageName)) {
                     Toast.makeText(
                         this@MainActivity,
-                        "App $label không mở được từ bên ngoài",
+                        "[v4] App $label không mở được từ bên ngoài",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
                     val nameText = if (label.isNotBlank()) "$label ($packageName)" else packageName
-                    Toast.makeText(this@MainActivity, "Chưa cài app: $nameText", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "[v4] Chưa cài app: $nameText", Toast.LENGTH_SHORT).show()
                 }
-            } catch (_: Exception) {
-                Toast.makeText(this@MainActivity, "Không mở được app: $packageName", Toast.LENGTH_SHORT).show()
+            } catch (ex: Exception) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "[v4] Lỗi mở $packageName: ${ex.message}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
