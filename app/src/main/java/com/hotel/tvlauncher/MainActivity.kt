@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
@@ -37,6 +38,13 @@ class MainActivity : Activity() {
         Pair("com.nghenhin24h.vietplaytv", "Vietplaytv"),
         Pair("vn.vtvcab.vtvprime.atv", "VTVprime"),
         Pair("com.apptv.tvplus", "TVplus")
+    )
+
+    private val directComponents = mapOf(
+        "vn.vtvcab.vtvprime.atv" to ComponentName(
+            "vn.vtvcab.vtvprime.atv",
+            "vn.vtvcab.seenow.tv.presentation.splash.SplashActivity"
+        )
     )
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -196,7 +204,12 @@ class MainActivity : Activity() {
 
     private fun isPackageInstalled(packageName: String): Boolean {
         return try {
-            packageManager.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, 0)
+            }
             true
         } catch (_: Exception) {
             false
@@ -204,6 +217,13 @@ class MainActivity : Activity() {
     }
 
     private fun resolveLaunchIntent(packageName: String): Intent? {
+        directComponents[packageName]?.let { comp ->
+            return Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+                component = comp
+            }
+        }
+
         packageManager.getLaunchIntentForPackage(packageName)?.let { return it }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -216,7 +236,12 @@ class MainActivity : Activity() {
                 addCategory(cat)
                 setPackage(packageName)
             }
-            val list = packageManager.queryIntentActivities(queryIntent, 0)
+            val list = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                packageManager.queryIntentActivities(queryIntent, PackageManager.MATCH_ALL)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.queryIntentActivities(queryIntent, 0)
+            }
             val first = list.firstOrNull()?.activityInfo
             if (first != null) {
                 return Intent(Intent.ACTION_MAIN).apply {
@@ -267,7 +292,7 @@ class MainActivity : Activity() {
                 if (isPackageInstalled(packageName)) {
                     Toast.makeText(
                         this@MainActivity,
-                        "App $label chặn mở từ bên ngoài, hãy mở trực tiếp trên launcher",
+                        "App $label không mở được từ bên ngoài",
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
@@ -290,7 +315,12 @@ class MainActivity : Activity() {
                 var iconBase64 = ""
                 if (installed) {
                     try {
-                        val appInfo = packageManager.getApplicationInfo(pkg, 0)
+                        val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageManager.getApplicationInfo(pkg, 0)
+                        }
                         appLabel = packageManager.getApplicationLabel(appInfo).toString()
                         iconBase64 = drawableToBase64(packageManager.getApplicationIcon(appInfo)) ?: ""
                     } catch (_: Exception) {
