@@ -3,6 +3,7 @@ package com.hotel.tvlauncher
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -31,6 +32,12 @@ class MainActivity : Activity() {
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
+
+    private val tvPackages = listOf(
+        Pair("com.nghenhin24h.vietplaytv", "Vietplaytv"),
+        Pair("vn.vtvcab.vtvprime.atv", "VTVprime"),
+        Pair("com.apptv.tvplus", "TVplus")
+    )
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -187,6 +194,15 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private fun isPackageInstalled(packageName: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun resolveLaunchIntent(packageName: String): Intent? {
         packageManager.getLaunchIntentForPackage(packageName)?.let { return it }
 
@@ -194,17 +210,21 @@ class MainActivity : Activity() {
             packageManager.getLeanbackLaunchIntentForPackage(packageName)?.let { return it }
         }
 
-        val leanbackIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
-            setPackage(packageName)
+        val categories = listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)
+        for (cat in categories) {
+            val queryIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(cat)
+                setPackage(packageName)
+            }
+            val list = packageManager.queryIntentActivities(queryIntent, 0)
+            val first = list.firstOrNull()?.activityInfo
+            if (first != null) {
+                return Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(cat)
+                    component = ComponentName(first.packageName, first.name)
+                }
+            }
         }
-        packageManager.resolveActivity(leanbackIntent, 0)?.let { return leanbackIntent }
-
-        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            setPackage(packageName)
-        }
-        packageManager.resolveActivity(launcherIntent, 0)?.let { return launcherIntent }
 
         return null
     }
@@ -236,13 +256,25 @@ class MainActivity : Activity() {
             try {
                 val intent = resolveLaunchIntent(packageName)
                 if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    intent.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+                    )
                     startActivity(intent)
+                    return@runOnUiThread
+                }
+
+                if (isPackageInstalled(packageName)) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "App $label chặn mở từ bên ngoài, hãy mở trực tiếp trên launcher",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } else {
                     val nameText = if (label.isNotBlank()) "$label ($packageName)" else packageName
-                    Toast.makeText(this@MainActivity, "Chưa cài hoặc bị ẩn app: $nameText", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Chưa cài app: $nameText", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Toast.makeText(this@MainActivity, "Không mở được app: $packageName", Toast.LENGTH_SHORT).show()
             }
         }
@@ -251,22 +283,16 @@ class MainActivity : Activity() {
     inner class TvBridge {
         @JavascriptInterface
         fun getTvAppsJson(): String {
-            val defaultApps = listOf(
-                Pair("com.nghenhin24h.vietplaytv", "Vietplaytv"),
-                Pair("vn.vtvcab.vtvprime.atv", "VTVprime"),
-                Pair("com.apptv.tvplus", "TVplus")
-            )
             val arr = JSONArray()
-            for ((pkg, fallbackName) in defaultApps) {
-                val installed = resolveLaunchIntent(pkg) != null
+            for ((pkg, fallbackName) in tvPackages) {
+                val installed = isPackageInstalled(pkg) || resolveLaunchIntent(pkg) != null
                 var appLabel = fallbackName
                 var iconBase64 = ""
                 if (installed) {
                     try {
                         val appInfo = packageManager.getApplicationInfo(pkg, 0)
                         appLabel = packageManager.getApplicationLabel(appInfo).toString()
-                        val iconDrawable = packageManager.getApplicationIcon(appInfo)
-                        iconBase64 = drawableToBase64(iconDrawable) ?: ""
+                        iconBase64 = drawableToBase64(packageManager.getApplicationIcon(appInfo)) ?: ""
                     } catch (_: Exception) {
                     }
                 }
