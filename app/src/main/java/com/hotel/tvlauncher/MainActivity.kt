@@ -180,11 +180,30 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private fun openPackageNow(packageName: String, label: String = "") {
+        runOnUiThread {
+            try {
+                val intent = packageManager.getLaunchIntentForPackage(packageName)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                } else {
+                    val nameText = if (label.isNotBlank()) "$label ($packageName)" else packageName
+                    Toast.makeText(this@MainActivity, "Chưa cài app: $nameText", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Không mở được app: $packageName", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     inner class TvBridge {
         @JavascriptInterface
         fun getTvAppsJson(): String {
             val candidatePackages = listOf(
-                "com.vtvprime.tv",
+                "com.nghenhin24h.vietplaytv",
+                "vn.vtvcab.vtvprime.atv",
+                "com.apptv.tvplus",
                 "com.fptplay.activity",
                 "ar.tvplayer.tv",
                 "studio.scillarium.ottnavigator",
@@ -206,16 +225,13 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun launchTvApp(packageName: String, appName: String, room: String) {
+            openPackageNow(packageName, appName)
+        }
+
+        @JavascriptInterface
         fun launchApp(packageName: String, action: String, room: String) {
-            runOnUiThread {
-                val intent = packageManager.getLaunchIntentForPackage(packageName)
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                } else {
-                    Toast.makeText(this@MainActivity, "Chưa cài ứng dụng: $packageName", Toast.LENGTH_SHORT).show()
-                }
-            }
+            openPackageNow(packageName, action)
         }
     }
 }
