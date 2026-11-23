@@ -5,7 +5,13 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Bundle
+import android.util.Base64
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -14,6 +20,7 @@ import android.widget.EditText
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 class MainActivity : Activity() {
 
@@ -180,16 +187,60 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(event)
     }
 
+    private fun resolveLaunchIntent(packageName: String): Intent? {
+        packageManager.getLaunchIntentForPackage(packageName)?.let { return it }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            packageManager.getLeanbackLaunchIntentForPackage(packageName)?.let { return it }
+        }
+
+        val leanbackIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+            setPackage(packageName)
+        }
+        packageManager.resolveActivity(leanbackIntent, 0)?.let { return leanbackIntent }
+
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage(packageName)
+        }
+        packageManager.resolveActivity(launcherIntent, 0)?.let { return launcherIntent }
+
+        return null
+    }
+
+    private fun drawableToBase64(drawable: Drawable): String? {
+        return try {
+            val bitmap: Bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                Bitmap.createScaledBitmap(drawable.bitmap, 128, 128, true)
+            } else {
+                val w = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 128
+                val h = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 128
+                val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bmp)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                Bitmap.createScaledBitmap(bmp, 128, 128, true)
+            }
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 85, stream)
+            val bytes = stream.toByteArray()
+            "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun openPackageNow(packageName: String, label: String = "") {
         runOnUiThread {
             try {
-                val intent = packageManager.getLaunchIntentForPackage(packageName)
+                val intent = resolveLaunchIntent(packageName)
                 if (intent != null) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
                 } else {
                     val nameText = if (label.isNotBlank()) "$label ($packageName)" else packageName
-                    Toast.makeText(this@MainActivity, "Chưa cài app: $nameText", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Chưa cài hoặc bị ẩn app: $nameText", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@MainActivity, "Không mở được app: $packageName", Toast.LENGTH_SHORT).show()
@@ -200,26 +251,31 @@ class MainActivity : Activity() {
     inner class TvBridge {
         @JavascriptInterface
         fun getTvAppsJson(): String {
-            val candidatePackages = listOf(
-                "com.nghenhin24h.vietplaytv",
-                "vn.vtvcab.vtvprime.atv",
-                "com.apptv.tvplus",
-                "com.fptplay.activity",
-                "ar.tvplayer.tv",
-                "studio.scillarium.ottnavigator",
-                "org.xbmc.kodi"
+            val defaultApps = listOf(
+                Pair("com.nghenhin24h.vietplaytv", "Vietplaytv"),
+                Pair("vn.vtvcab.vtvprime.atv", "VTVprime"),
+                Pair("com.apptv.tvplus", "TVplus")
             )
             val arr = JSONArray()
-            for (pkg in candidatePackages) {
-                val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
-                if (launchIntent != null) {
-                    val appInfo = packageManager.getApplicationInfo(pkg, 0)
-                    val label = packageManager.getApplicationLabel(appInfo).toString()
-                    val obj = JSONObject()
-                    obj.put("name", label)
-                    obj.put("pkg", pkg)
-                    arr.put(obj)
+            for ((pkg, fallbackName) in defaultApps) {
+                val installed = resolveLaunchIntent(pkg) != null
+                var appLabel = fallbackName
+                var iconBase64 = ""
+                if (installed) {
+                    try {
+                        val appInfo = packageManager.getApplicationInfo(pkg, 0)
+                        appLabel = packageManager.getApplicationLabel(appInfo).toString()
+                        val iconDrawable = packageManager.getApplicationIcon(appInfo)
+                        iconBase64 = drawableToBase64(iconDrawable) ?: ""
+                    } catch (_: Exception) {
+                    }
                 }
+                val obj = JSONObject()
+                obj.put("name", appLabel)
+                obj.put("pkg", pkg)
+                obj.put("installed", installed)
+                obj.put("icon", iconBase64)
+                arr.put(obj)
             }
             return arr.toString()
         }
