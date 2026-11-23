@@ -40,8 +40,9 @@ class MainActivity : Activity() {
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.useWideViewPort = true
-        settings.loadWithOverviewMode = true
+        settings.useWideViewPort = false
+        settings.loadWithOverviewMode = false
+        settings.textZoom = 100
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
