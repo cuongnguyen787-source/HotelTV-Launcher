@@ -32,11 +32,30 @@ class MainActivity : Activity() {
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.useWideViewPort = true
-        settings.loadWithOverviewMode = true
+        settings.useWideViewPort = false
+        settings.loadWithOverviewMode = false
+        settings.textZoom = 100
 
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val fixJs = """
+                    (function() {
+                        var meta = document.querySelector('meta[name="viewport"]');
+                        if (!meta) {
+                            meta = document.createElement('meta');
+                            meta.name = 'viewport';
+                            document.head.appendChild(meta);
+                        }
+                        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                        document.documentElement.style.zoom = '1';
+                        document.body.style.zoom = '1';
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(fixJs, null)
+            }
+
             override fun onReceivedError(
                 view: WebView?,
                 request: WebResourceRequest?,
