@@ -39,10 +39,12 @@ class MainActivity : Activity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.cacheMode = WebSettings.LOAD_NO_CACHE
         settings.useWideViewPort = false
         settings.loadWithOverviewMode = false
         settings.textZoom = 100
+
+        webView.clearCache(true)
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -75,6 +77,7 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 webView.requestFocus()
+                webView.evaluateJavascript("window.syncFromCloud && window.syncFromCloud()", null)
             }
 
             override fun onReceivedError(
@@ -98,6 +101,14 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::webView.isInitialized) {
+            webView.requestFocus()
+            webView.evaluateJavascript("window.syncFromCloud && window.syncFromCloud()", null)
+        }
+    }
+
     private fun getRoomCode(): String? {
         return getSharedPreferences("hotel_tv_prefs", Context.MODE_PRIVATE)
             .getString("room_code", null)
@@ -112,7 +123,8 @@ class MainActivity : Activity() {
 
     private fun loadRoomUrl() {
         val room = getRoomCode() ?: "101"
-        webView.loadUrl("$baseUrl?room=$room")
+        webView.clearCache(true)
+        webView.loadUrl("$baseUrl?room=$room&_t=${System.currentTimeMillis()}")
     }
 
     private fun promptRoomSetup(isInitial: Boolean) {
