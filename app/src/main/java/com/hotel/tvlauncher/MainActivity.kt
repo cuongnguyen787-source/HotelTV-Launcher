@@ -41,19 +41,61 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 val fixJs = """
-                    (function() {
-                        var meta = document.querySelector('meta[name="viewport"]');
-                        if (!meta) {
-                            meta = document.createElement('meta');
-                            meta.name = 'viewport';
-                            document.head.appendChild(meta);
-                        }
-                        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-                        document.documentElement.style.zoom = '1';
-                        document.body.style.zoom = '1';
-                    })();
-                """.trimIndent()
-                view?.evaluateJavascript(fixJs, null)
+    (function() {
+        try {
+            if (!window.__safeStorageInstalled) {
+                window.__safeStorageInstalled = true;
+                var mem = {};
+                var fakeStorage = {
+                    getItem: function(k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+                    setItem: function(k, v) { mem[k] = String(v); },
+                    removeItem: function(k) { delete mem[k]; },
+                    clear: function() { mem = {}; }
+                };
+                try {
+                    window.localStorage.setItem('__test__', '1');
+                    window.localStorage.removeItem('__test__');
+                } catch (e) {
+                    Object.defineProperty(window, 'localStorage', { value: fakeStorage });
+                }
+                try {
+                    window.sessionStorage.setItem('__test__', '1');
+                    window.sessionStorage.removeItem('__test__');
+                } catch (e) {
+                    Object.defineProperty(window, 'sessionStorage', { value: fakeStorage });
+                }
+            }
+        } catch (err) {}
+
+        var style = document.getElementById('tv-box-fix-style');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'tv-box-fix-style';
+            document.head.appendChild(style);
+        }
+        style.textContent = `
+            html, body {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 100% !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+            *, *::before, *::after {
+                box-sizing: border-box !important;
+            }
+            button, a, [role="button"], .btn, .lang-btn, [class*="lang"] {
+                max-height: 64px !important;
+                line-height: 1.2 !important;
+            }
+            .cards, .menu-grid, .bottom-cards, .tiles, .grid, .row,
+            [class*="card"], [class*="tile"], [class*="box"], [class*="panel"] {
+                max-height: 220px !important;
+            }
+        `;
+    })();
+""".trimIndent()
+view?.evaluateJavascript(fixJs, null)
             }
 
             override fun onReceivedError(
