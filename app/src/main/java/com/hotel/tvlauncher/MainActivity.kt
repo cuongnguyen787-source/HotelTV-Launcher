@@ -3,46 +3,33 @@ package com.hotel.tvlauncher
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.webkit.*
 import android.widget.EditText
 import android.widget.Toast
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
-    private var zeroPressCount = 0
-    private var lastZeroPressTime = 0L
+    private val baseUrl = "https://cuongnguyen787-source.github.io/HotelTV/tv-home.html"
+    private var secretTapCount = 0
+    private var lastSecretTapTime = 0L
+
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
-
-    private val baseUrl = "https://cuongnguyen787-source.github.io/HotelTV/tv-home.html"
-    private val prefsName = "hotel_tv_prefs"
-    private val keyRoom = "room_number"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         webView = WebView(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
             isFocusable = true
             isFocusableInTouchMode = true
         }
@@ -53,11 +40,8 @@ class MainActivity : Activity() {
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        settings.useWideViewPort = false
-        settings.loadWithOverviewMode = false
-        settings.textZoom = 100
-
-        webView.addJavascriptInterface(AndroidBridge(), "AndroidBridge")
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
@@ -103,124 +87,120 @@ class MainActivity : Activity() {
             }
         }
 
-        val savedRoom = getRoomNumber()
+        webView.addJavascriptInterface(TvBridge(), "AndroidBridge")
+
+        val savedRoom = getRoomCode()
         if (savedRoom.isNullOrBlank()) {
-            showRoomDialog(allowCancel = false)
+            promptRoomSetup(isInitial = true)
         } else {
             loadRoomUrl()
         }
     }
 
-    private fun getRoomNumber(): String? {
-        return getSharedPreferences(prefsName, MODE_PRIVATE).getString(keyRoom, null)
+    private fun getRoomCode(): String? {
+        return getSharedPreferences("hotel_tv_prefs", Context.MODE_PRIVATE)
+            .getString("room_code", null)
     }
 
-    private fun saveRoomNumber(room: String) {
-        getSharedPreferences(prefsName, MODE_PRIVATE).edit().putString(keyRoom, room).apply()
+    private fun saveRoomCode(room: String) {
+        getSharedPreferences("hotel_tv_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("room_code", room.trim())
+            .apply()
     }
 
     private fun loadRoomUrl() {
-        val room = getRoomNumber()?.takeIf { it.isNotBlank() } ?: "101"
-        val target = "$baseUrl?room=${Uri.encode(room)}"
-        webView.loadUrl(target)
+        val room = getRoomCode() ?: "101"
+        webView.loadUrl("$baseUrl?room=$room")
     }
 
-    private fun showRoomDialog(allowCancel: Boolean) {
-        val input = EditText(this).apply {
-            hint = "Nhập số phòng (vd: 101)"
-            setText(getRoomNumber() ?: "101")
-        }
+    private fun promptRoomSetup(isInitial: Boolean) {
+        val input = EditText(this)
+        input.hint = "Ví dụ: 101"
+        input.setText(getRoomCode() ?: "")
 
-        AlertDialog.Builder(this)
-            .setTitle("Cấu hình phòng TV")
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Cài đặt số phòng cho Box TV")
+            .setMessage("Nhập số phòng (101 - 510):")
             .setView(input)
-            .setCancelable(allowCancel)
+            .setCancelable(!isInitial)
             .setPositiveButton("Lưu") { _, _ ->
-                val room = input.text.toString().trim().ifEmpty { "101" }
-                saveRoomNumber(room)
-                loadRoomUrl()
-            }
-            .setNeutralButton("Cài đặt Box") { _, _ ->
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            }
-            .apply {
-                if (allowCancel) {
-                    setNegativeButton("Đóng", null)
+                val valRoom = input.text.toString().trim()
+                if (valRoom.isNotEmpty()) {
+                    saveRoomCode(valRoom)
+                    loadRoomUrl()
+                } else {
+                    promptRoomSetup(isInitial)
                 }
             }
-            .show()
+
+        if (!isInitial) {
+            builder.setNegativeButton("Đóng", null)
+            builder.setNeutralButton("Cài đặt Android") { _, _ ->
+                startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+            }
+        }
+        builder.show()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            if (event.keyCode == KeyEvent.KEYCODE_0 || event.keyCode == KeyEvent.KEYCODE_NUMPAD_0) {
-                val now = System.currentTimeMillis()
-                if (now - lastZeroPressTime > 2000) {
-                    zeroPressCount = 0
-                }
-                lastZeroPressTime = now
-                zeroPressCount++
-                if (zeroPressCount >= 5) {
-                    zeroPressCount = 0
-                    showRoomDialog(allowCancel = true)
+            if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                if (customView != null) {
+                    (webView.webChromeClient as? WebChromeClient)?.onHideCustomView()
                     return true
                 }
+                webView.evaluateJavascript("window.handleAndroidBack && window.handleAndroidBack()", null)
+                return true
             }
-
-            if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
-                event.keyCode == KeyEvent.KEYCODE_ENTER ||
-                event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
-            ) {
-                webView.evaluateJavascript(
-                    """
-                    (function() {
-                        var el = document.activeElement;
-                        if (el && el !== document.body && el !== document.documentElement && typeof el.click === 'function') {
-                            el.click();
-                            return 'true';
-                        }
-                        return 'false';
-                    })();
-                    """.trimIndent(),
-                    null
-                )
+            if (event.keyCode == KeyEvent.KEYCODE_0) {
+                val now = System.currentTimeMillis()
+                secretTapCount = if (now - lastSecretTapTime < 1500) secretTapCount + 1 else 1
+                lastSecretTapTime = now
+                if (secretTapCount >= 5) {
+                    secretTapCount = 0
+                    promptRoomSetup(isInitial = false)
+                    return true
+                }
             }
         }
         return super.dispatchKeyEvent(event)
     }
 
-    override fun onBackPressed() {
-        if (customView != null) {
-            onHideCustomView()
-            return
-        }
-        webView.evaluateJavascript(
-            "(typeof window.closePromoIfOpen === 'function') ? window.closePromoIfOpen() : false"
-        ) { result ->
-            if (result != "true") {
-                // Giữ vai trò Launcher trên màn hình chính, không thoát trắng
-            }
-        }
-    }
-
-    private fun onHideCustomView() {
-        (webView.webChromeClient as? WebChromeClient)?.onHideCustomView()
-    }
-
-    inner class AndroidBridge {
+    inner class TvBridge {
         @JavascriptInterface
-        fun launchApp(packageName: String) {
+        fun getTvAppsJson(): String {
+            val candidatePackages = listOf(
+                "com.vtvprime.tv",
+                "com.fptplay.activity",
+                "ar.tvplayer.tv",
+                "studio.scillarium.ottnavigator",
+                "org.xbmc.kodi"
+            )
+            val arr = JSONArray()
+            for (pkg in candidatePackages) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) {
+                    val appInfo = packageManager.getApplicationInfo(pkg, 0)
+                    val label = packageManager.getApplicationLabel(appInfo).toString()
+                    val obj = JSONObject()
+                    obj.put("name", label)
+                    obj.put("pkg", pkg)
+                    arr.put(obj)
+                }
+            }
+            return arr.toString()
+        }
+
+        @JavascriptInterface
+        fun launchApp(packageName: String, action: String, room: String) {
             runOnUiThread {
                 val intent = packageManager.getLaunchIntentForPackage(packageName)
                 if (intent != null) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
                 } else {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Chưa cài ứng dụng: $packageName",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this@MainActivity, "Chưa cài ứng dụng: $packageName", Toast.LENGTH_SHORT).show()
                 }
             }
         }
