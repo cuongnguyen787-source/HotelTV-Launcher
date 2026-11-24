@@ -24,7 +24,7 @@
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"
-        android:label="Hotel TV"
+        android:label="Hotel TV launcher"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
 
