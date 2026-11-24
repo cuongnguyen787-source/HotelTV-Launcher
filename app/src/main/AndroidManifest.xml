@@ -24,7 +24,7 @@
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"
-        android:label="Hotel TV launcher"
+        android:label="Hotel TV Launcher"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
 
@@ -36,6 +36,8 @@
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
