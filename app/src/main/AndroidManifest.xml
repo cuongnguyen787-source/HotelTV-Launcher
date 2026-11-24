@@ -11,6 +11,9 @@
         <package android:name="vn.vtvcab.vtvprime" />
         <package android:name="com.vtvcab.vtvprime.atv" />
         <package android:name="com.apptv.tvplus" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="com.iqiyi.i18n.tv" />
+        <package android:name="com.sports.tv" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -24,7 +27,7 @@
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"
-        android:label="Hotel TV Launcher"
+        android:label="Hotel TV launcher"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
 
