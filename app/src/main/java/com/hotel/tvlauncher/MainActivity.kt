@@ -40,6 +40,12 @@ class MainActivity : Activity() {
         Pair("com.apptv.tvplus", "TVplus")
     )
 
+    private val moviePackages = listOf(
+        Pair("com.google.android.youtube.tv", "YouTube"),
+        Pair("com.iqiyi.i18n.tv", "iQIYI"),
+        Pair("com.sports.tv", "SportsTV")
+    )
+
     private val directComponents = mapOf(
         "vn.vtvcab.vtvprime.atv" to ComponentName(
             "vn.vtvcab.vtvprime.atv",
@@ -276,6 +282,35 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun buildAppsJson(items: List<Pair<String, String>>): String {
+        val arr = JSONArray()
+        for ((pkg, fallbackName) in items) {
+            val installed = isPackageInstalled(pkg) || resolveLaunchIntent(pkg) != null
+            var appLabel = fallbackName
+            var iconBase64 = ""
+            if (installed) {
+                try {
+                    val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        packageManager.getApplicationInfo(pkg, 0)
+                    }
+                    appLabel = packageManager.getApplicationLabel(appInfo).toString()
+                    iconBase64 = drawableToBase64(packageManager.getApplicationIcon(appInfo)) ?: ""
+                } catch (_: Exception) {
+                }
+            }
+            val obj = JSONObject()
+            obj.put("name", appLabel)
+            obj.put("pkg", pkg)
+            obj.put("installed", installed)
+            obj.put("icon", iconBase64)
+            arr.put(obj)
+        }
+        return arr.toString()
+    }
+
     private fun openPackageNow(packageName: String, label: String = "") {
         runOnUiThread {
             try {
@@ -312,32 +347,12 @@ class MainActivity : Activity() {
     inner class TvBridge {
         @JavascriptInterface
         fun getTvAppsJson(): String {
-            val arr = JSONArray()
-            for ((pkg, fallbackName) in tvPackages) {
-                val installed = isPackageInstalled(pkg) || resolveLaunchIntent(pkg) != null
-                var appLabel = fallbackName
-                var iconBase64 = ""
-                if (installed) {
-                    try {
-                        val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
-                        } else {
-                            @Suppress("DEPRECATION")
-                            packageManager.getApplicationInfo(pkg, 0)
-                        }
-                        appLabel = packageManager.getApplicationLabel(appInfo).toString()
-                        iconBase64 = drawableToBase64(packageManager.getApplicationIcon(appInfo)) ?: ""
-                    } catch (_: Exception) {
-                    }
-                }
-                val obj = JSONObject()
-                obj.put("name", appLabel)
-                obj.put("pkg", pkg)
-                obj.put("installed", installed)
-                obj.put("icon", iconBase64)
-                arr.put(obj)
-            }
-            return arr.toString()
+            return buildAppsJson(tvPackages)
+        }
+
+        @JavascriptInterface
+        fun getMovieAppsJson(): String {
+            return buildAppsJson(moviePackages)
         }
 
         @JavascriptInterface
