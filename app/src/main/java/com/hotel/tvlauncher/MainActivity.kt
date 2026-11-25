@@ -37,7 +37,7 @@ class MainActivity : Activity() {
     private val tvPackages = listOf(
         Pair("com.nghenhin24h.vietplaytv", "Vietplaytv"),
         Pair("vn.vtvcab.vtvprime.atv", "VTVprime"),
-        Pair("com.apptv.tvplus", "TVplus")
+        Pair("com.sports.tv", "SportsTV")
     )
 
     private val moviePackages = listOf(
