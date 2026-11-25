@@ -43,7 +43,7 @@ class MainActivity : Activity() {
     private val moviePackages = listOf(
         Pair("com.google.android.youtube.tv", "YouTube"),
         Pair("com.iqiyi.i18n.tv", "iQIYI"),
-        Pair("com.sports.tv", "SportsTV")
+        Pair("ar.tvplayer.tv", "TVmate")
     )
 
     private val directComponents = mapOf(
